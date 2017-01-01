@@ -20,7 +20,7 @@
 ####################################################################
 ####################################################################
 #
-#              WLAN_SWITCHER für SPEEDPORT W724V
+#              WLAN-SWITCHER fuer SPEEDPORT W724V
 #
 # Der Speedport W724V deaktiviert die WLAN-Module nach eingestelltem
 # Intervall nur wenn zum Schaltzeitpunkt kein Device eingebucht ist.
@@ -29,23 +29,23 @@
 #
 # https://telekomhilft.telekom.de/t5/Telefonie-Internet/Speedport-W-724V-Zeitschaltung-funktioniert-nicht/td-p/339560/page/10
 #
-# Dieses Skript stellt hierfür eine mögliche Lösung dar!
-# Ausgeführt in einem cron-job auf zB einem Raspberry-PI kann es
-# zuverlässig die einzelnen WLAN-Module des W724V aktivieren und
+# Dieses Skript stellt hierfuer eine moegliche Loesung dar!
+# Ausgefuehrt in einem cron-job auf zB einem Raspberry-PI kann es
+# zuverlaessig die einzelnen WLAN-Module des W724V aktivieren und
 # deaktivieren!
-# Es könnte möglich sein, dass der wlan_switcher auch für andere
-# Speedport-Modelle funktioniert! Bitte unbedingt um Rückmeldungen!
+# Es koennte moeglich sein, dass der wlan_switcher auch fuer andere
+# Speedport-Modelle funktioniert! Bitte unbedingt um Rueckmeldungen!
 #
 #####################################################################
 #####################################################################
 #
 # Bitte unbedingt die IP-Adresse und das Router-Passwort in
-# der zugehörigen wlan_switcher.conf an die eigenen Werte an-
+# der zugehoerigen wlan.conf an die eigenen Werte an-
 # passen!
-# Falls die wlan_switcher.conf nicht im Verzeichns exisitiert, wird
+# Falls die wlan.conf nicht im Verzeichns exisitiert, wird
 # sie beim erstmaligen Start des WLAN_Switcher angelegt!
 #
-# Dieses Skript benötigt python3 und die requests library.
+# Dieses Skript benoetigt python3 und die requests library.
 # Bitte bei Bedarf nachinstallieren mit:
 #
 # pip install requests
@@ -53,7 +53,7 @@
 #
 #####################################################################
 #
-#
+# Version 1.1 (andreasloeffler): Auslesen der Anrufliste mit python; funktioniert aber noch nicht
 #
 #
 
@@ -64,19 +64,21 @@ import re
 import argparse
 import configparser
 import sys
+import time
 
 
 # Funkton zum Einlesen der Kommandozeilenparameter:
 def read_cmd_params():
-    parser = argparse.ArgumentParser(description="Mögliche Optionen:")
+    parser = argparse.ArgumentParser(description="Moegliche Optionen:")
     parser.add_argument("-w", "--wlan", dest="freq",
                         choices=["2,4", "5"],
-                        required="True",
-                        help="Das zu schaltende WLAN-Modul: mögliche Werte sind 2,4 und 5")
+                        help="Das zu schaltende WLAN-Modul: moegliche Werte sind 2,4 und 5")
     parser.add_argument("-s", "--switch", dest="switch",
-                        required="True",
                         choices=["on", "off"],
-                        help="Ein oder Ausschalten: mögliche Werte sind 'on' und 'off'")
+                        help="Ein oder Ausschalten: moegliche Werte sind 'on' und 'off'")
+    parser.add_argument("-p", "--phonecalls", dest="phone",
+                        action="store_true",
+                        help="Anrufe ausgeben")
     parser.add_argument("-v", "--verbose",
                         action="store_true",
                         help="Schreibe Statusmeldungen to stdout")
@@ -85,21 +87,21 @@ def read_cmd_params():
 
 
 
-# Funktion um wlan_switcher.conf mit default Werten zu erstellen:
+# Funktion um wlan.conf mit default Werten zu erstellen:
 def write_config_file():
     config_header = "####################################################################\n" \
                     "####################################################################\n" \
                     "#\n" \
-                    "#              WLAN_SWITCHER für SPEEDPORT W724V\n" \
+                    "#              WLAN_SWITCHER fuer SPEEDPORT W724V\n" \
                     "#\n" \
-                    "# Konfigurationsdatei für wlan_switcher.py\n" \
+                    "# Konfigurationsdatei fuer wlan_switcher.py\n" \
                     "#\n" \
                     "#####################################################################\n" \
                     "#####################################################################\n" \
                     "#\n" \
                     "# Bitte unbedingt die IP-Adresse des Speedports (router_ip) und das\n" \
                     "# Router-Passwort (router_pw) an die eigenen Werte anpassen!\n" \
-                    "# Anschließend 'Routerdaten wurden angepasst:' auf 'true' setzen!\n" \
+                    "# Anschliessend 'Routerdaten wurden angepasst:' auf 'true' setzen!\n" \
                     "#\n" \
                     "#####################################################################\n" \
                     "#\n" \
@@ -108,37 +110,39 @@ def write_config_file():
                     "#\n"
 
     config = configparser.ConfigParser()
-    config['Routerdaten'] = {'router_ip': '192.168.1.1',
-                             'router_pw': 'password',
+    config['Routerdaten'] = {'router_ip': '192.168.2.1',
+                             'router_pw': '',
                              'Routerdaten wurden angepasst': 'false'}
 
-    with open('wlan_switcher.conf', 'w') as configfile:
+    with open('wlan.conf', 'w') as configfile:
         print(config_header, file=configfile)
         config.write(configfile)
 
 
-# Funktion um die benötigten Werte aus wlan_switcher.conf auszulesen:
+# Funktion um die ben\"{o}tigten Werte aus wlan.conf auszulesen:
 def read_config_file():
     config = configparser.ConfigParser()
-    config.read('wlan_switcher.conf')
+    config.read('wlan.conf')
     routerdaten = config['Routerdaten']
     if routerdaten['Routerdaten wurden angepasst'] != 'true':
-        print('Die wlan_switcher.conf wurde nicht angepasst! Abbruch!')
+        print('Die wlan.conf wurde nicht angepasst! Abbruch!')
         sys.exit()
     return routerdaten
 
 
-# Erzeuge die benötigten URLs:
+# Erzeuge die benoetigten URLs:
 def generiere_urls(router_ip):
     url_router = 'http://' + router_ip
     url_login = url_router + '/data/Login.json'
     url_main = url_router + '/html/content/overview/index.html?lang=de'
     url_modules_json = url_router + '/data/Modules.json'
+    url_portforwarding_json = url_router + '/data/Portforwarding.json'
+    url_Phonecalls_json = url_router + '/data/PhoneCalls.json'
     url_modules_json_headers = {'Referer': url_router + '/html/content/overview/index.html?lang=de'}
-    return url_router, url_login, url_main, url_modules_json, url_modules_json_headers
+    return url_router, url_login, url_main, url_modules_json, url_portforwarding_json, url_Phonecalls_json, url_modules_json_headers
 
 
-# Generiere md5 Hash für password
+# Generiere md5 Hash fuer password
 def pass_hash(pw):
     return hashlib.md5(bytes(pw, 'utf-8')).hexdigest()
 
@@ -149,12 +153,12 @@ def get_httoken(page_object):
     return re.findall(regex, page_object.text)[0]
 
 
-#  Schalter für WLAN ein/aus für jeweils 2,4 und 5 GHz:
+#  Schalter fuer WLAN ein/aus fuer jeweils 2,4 und 5 GHz:
 def wlan(ghz, status, httoken):
-    if ghz == '2,4':
-        freq_modul = 'use_wlan'
-    else:
+    if ghz == '5':
         freq_modul = 'use_wlan_5ghz'
+    else:
+        freq_modul = 'use_wlan'
 
     if status == 'off':
         schalter = 0
@@ -162,6 +166,12 @@ def wlan(ghz, status, httoken):
         schalter = 1
 
     return {freq_modul: schalter, 'httoken': httoken}
+
+
+#  Anrufliste abfragen
+def phonecalls(httoken):
+    zeit = int(time.time()) # ist doch so, dass nur der ganzzahlige Teil verwendet wird?
+    return {'_time': zeit, '_tn': httoken}
 
 
 # Troubleshootingfunktion zur Ausgabe der Requests, Header, usw..
@@ -180,27 +190,27 @@ def pagerequest(url, session):
 
 # Hauptfunktion
 def main():
-    # Prüfe ob wlan_switcher.conf existiert:
+    # Pruefe ob wlan.conf existiert:
     try:
-        with open('wlan_switcher.conf') as file:
+        with open('wlan.conf') as file:
             pass
     except IOError as e:
-        print("wlan_switcher.conf existiert nicht. Erstelle neu!\n"
-              "Bitte wlan_switcher.conf editieren und entsprechend anpassen!")
+        print("wlan.conf existiert nicht. Erstelle neu!\n"
+              "Bitte wlan.conf editieren und entsprechend anpassen!")
         write_config_file()
         sys.exit()
 
     # Lese cmd_params ein:
     param = read_cmd_params()
     if param.verbose is True:
-        print(param.freq, param.switch, param.verbose)
+        print('freq=', param.freq, ', switch=', param.switch, ', phone=', param.phone, ', verbose=', param.verbose)
 
     # Starte neue http-Session:
     with requests.Session() as s:
         routerdaten = read_config_file()
         router_urls = generiere_urls(routerdaten['router_ip'])
         if param.verbose is True:
-            print(router_urls)
+            print('URLS:', router_urls)
         httoken, s = pagerequest(router_urls[0], s)
 
         page = s.post(router_urls[1],
@@ -210,14 +220,18 @@ def main():
             print('Loginvorgang:', page.json()[1]["varvalue"])
 
         httoken, s = pagerequest(router_urls[2], s)
-        if param.verbose is True:
-            printrequestandcontent(page)
 
-        page = s.post(router_urls[3], data=wlan(param.freq, param.switch, httoken), headers=router_urls[4])
-        if param.verbose is True:
-            print('Vorgangsstatus: WLAN-Modul:', param.freq, 'GHz, Schaltzustand:', param.switch, '-->',
-                  page.json()[0]["varvalue"])
+        if param.switch != None:
+            page = s.post(router_urls[3], data=wlan(param.freq, param.switch, httoken), headers=router_urls[4])
+            if param.verbose is True:
+                print('Vorgangsstatus: WLAN-Modul:', param.freq, 'GHz, Schaltzustand:', param.switch, '-->',
+                      page.json()[0]["varvalue"])
 
+        if param.phone is True:
+            page = s.get(router_urls[5], data=phonecalls(httoken), headers=router_urls[6])
+            print("page.request.response ist aergerlichweise anscheinend leer: ", page.request.response)
+            if param.verbose is True:
+                print('Vorgangsstatus: Anrufe-Modul')
 
 if __name__ == '__main__':
     main()
