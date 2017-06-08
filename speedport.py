@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #    Speedport W724V - Kommandozeilenprogramm
-#    Copyright (C) 2016  Stefan Nuber
+#    Copyright (C) 2016  Stefan Nuber, veraendert von A. Loeffler 2017
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -77,7 +77,7 @@ def read_cmd_params():
     return parser.parse_args()
 
 
-#formatting and printing single call
+# formatting and printing single call
 def print_call_data(str1, str2):
     # when do we need newlines when printing?
     nwl = (str1 == "takencalls_duration") or (str1 == "dialedcalls_duration") or (str1 == "missedcalls_who")
@@ -100,7 +100,7 @@ def print_call_data(str1, str2):
     return 
     
 
-#printing set of calls
+# printing set of calls
 def print_calls(i, str, denom, counter, no):
     if (i["varid"] == str):
         counter += 1
@@ -112,7 +112,7 @@ def print_calls(i, str, denom, counter, no):
     return counter
 
 
-#printing set of devices
+# printing set of devices
 def print_devices(i):
     str1 = ""
     if (i["varid"] == "dynrule_addmdevice"):
@@ -138,36 +138,41 @@ def main():
     url_router = 'http://speedport.ip'
     passwd_router = 'XXXXX'
     
+    # Geraetepasswort gesetzt?
     if (passwd_router == 'XXXXX'):
-        print("Bitte das Gerätepasswort passwd_router=XXXXX anpassen. Abbruch!")
+        print("Bitte das Gerätepasswort passwd_router=XXXXX in speedport.py, Zeile 139, anpassen. Abbruch!")
         sys.exit()
     
+    # Parameter einlesen
     param = read_cmd_params()
         
+    # Einloggen
     with requests.Session() as s:
         page = s.post(url_router + '/data/Login.json', data={'password': hashlib.md5(bytes(passwd_router, 'utf-8')).hexdigest(), 'showpw': '0', 'httoken': ''})
         httoken = re.findall('_httoken = (\d*);', s.get(url_router + '/html/content/overview/index.html?lang=de').text)[0]
         
-        #Telefonate
-        page = s.get(url_router + '/data/PhoneCalls.json', params={"_tn": httoken}, headers={'Referer': url_router + '/html/content/overview/index.html?lang=de'})
-        page_decoded = json.loads(page.content.decode('utf-8'))
+        if param.?? == "c":
+            # Telefonate holen
+            page = s.get(url_router + '/data/PhoneCalls.json', params={"_tn": httoken}, headers={'Referer': url_router + '/html/content/overview/index.html?lang=de'})
+            page_decoded = json.loads(page.content.decode('utf-8'))
         
-        no_printed_calls = 10 #how many calls shall be printed?
-        counter_taken = 0 #three counters
-        counter_missed = 0
-        counter_dialed = 0
-        for i in page_decoded:
-             counter_taken = print_calls(i, "addtakencalls", "--angenommen", counter_taken, no_printed_calls)          
-             counter_missed = print_calls(i, "adddialedcalls", "--angerufen", counter_missed, no_printed_calls)          
-             counter_dialed = print_calls(i, "addmissedcalls", "--verpasst", counter_dialed, no_printed_calls)          
+            no_printed_calls = 10 #how many calls shall be printed?
+            counter_taken = 0 #three counters
+            counter_missed = 0
+            counter_dialed = 0
+            for i in page_decoded:
+                counter_taken = print_calls(i, "addtakencalls", "--angenommen", counter_taken, no_printed_calls)          
+                counter_missed = print_calls(i, "adddialedcalls", "--angerufen", counter_missed, no_printed_calls)          
+                counter_dialed = print_calls(i, "addmissedcalls", "--verpasst", counter_dialed, no_printed_calls)          
 
-        #Internetdaten (Portfreigaben insbesondere)
-        page = s.get(url_router + '/data/Portforwarding.json', params={"_tn": httoken}, headers={'Referer': url_router + '/html/content/overview/index.html?lang=de'})
-        page_decoded = json.loads(page.content.decode('utf-8'))
-        for i in page_decoded:
-             str1 = print_devices(i)
-             if str1 != "":
-                  print(str1)
+        else param.?? == "f":
+            #Internetdaten (Portfreigaben insbesondere)
+            page = s.get(url_router + '/data/Portforwarding.json', params={"_tn": httoken}, headers={'Referer': url_router + '/html/content/overview/index.html?lang=de'})
+            page_decoded = json.loads(page.content.decode('utf-8'))
+            for i in page_decoded:
+                str1 = print_devices(i)
+                if str1 != "":
+                    print(str1)
 
 if __name__ == '__main__':
     main()
