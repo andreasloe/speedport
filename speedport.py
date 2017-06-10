@@ -70,10 +70,17 @@ def read_cmd_params():
                         required="True",
                         choices=["on", "off"],
                         help="Ein oder Ausschalten: mögliche Werte sind 'on' und 'off'")
-    parser.add_argument("-p", "--phonecalls", dest="switch",
+    parser.add_argument("-c", "--calls", dest="calltype",
                         required="True",
                         help="Auslesen der Telefonliste (10 Anrufe)")
+    parser.add_argument("-p", "--ports", dest="portfreigaben",
+                        required="True",
+                        help="Auslesen der Portfreigaben")
 
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+   
     return parser.parse_args()
 
 
@@ -151,7 +158,7 @@ def main():
         page = s.post(url_router + '/data/Login.json', data={'password': hashlib.md5(bytes(passwd_router, 'utf-8')).hexdigest(), 'showpw': '0', 'httoken': ''})
         httoken = re.findall('_httoken = (\d*);', s.get(url_router + '/html/content/overview/index.html?lang=de').text)[0]
         
-        if param.?? == "c":
+        if param.calltyp is True:
             # Telefonate holen
             page = s.get(url_router + '/data/PhoneCalls.json', params={"_tn": httoken}, headers={'Referer': url_router + '/html/content/overview/index.html?lang=de'})
             page_decoded = json.loads(page.content.decode('utf-8'))
@@ -165,7 +172,7 @@ def main():
                 counter_missed = print_calls(i, "adddialedcalls", "--angerufen", counter_missed, no_printed_calls)          
                 counter_dialed = print_calls(i, "addmissedcalls", "--verpasst", counter_dialed, no_printed_calls)          
 
-        else param.?? == "f":
+        elif param.portfreigaben is True:
             #Internetdaten (Portfreigaben insbesondere)
             page = s.get(url_router + '/data/Portforwarding.json', params={"_tn": httoken}, headers={'Referer': url_router + '/html/content/overview/index.html?lang=de'})
             page_decoded = json.loads(page.content.decode('utf-8'))
@@ -173,6 +180,10 @@ def main():
                 str1 = print_devices(i)
                 if str1 != "":
                     print(str1)
+
+        else param.switch is True:
+            #WLAN-Frequenz tauschen
+            print ("To be implemented")
 
 if __name__ == '__main__':
     main()
